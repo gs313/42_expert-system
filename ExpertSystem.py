@@ -27,48 +27,63 @@ def to_rpn(expression):
     return output
 
 def evaluate_rpn(rpn_list, solve_func):
-    print(rpn_list)
     stack = []
+    
+    # ฟังก์ชันช่วยเช็คว่าเป็นเท็จ (ครอบคลุมทั้ง "F" แท้ และ "df")
+    def is_f(val):
+        return val in ("F", "df")
+
     for token in rpn_list:
         if token.isupper():
             stack.append(solve_func(token))
             
         elif token == '!':
             val = stack.pop()
-            if val is None:
-                stack.append(None)
+            if val == "N":
+                stack.append("N")
+            elif is_f(val):
+                stack.append("T")
             else:
-                stack.append(not val)
+                stack.append("F")
                 
         elif token == '+':
             v2 = stack.pop()
             v1 = stack.pop()
-            if v1 is False or v2 is False:
-                stack.append(False)
-            elif v1 is None or v2 is None:
-                stack.append(None)
+            if v1 == "F" or v2 == "F":
+                stack.append("F")
+            elif v1 == "df" or v2 == "df":
+                stack.append("df")
+            elif v1 == "N" or v2 == "N":
+                stack.append("N")
             else:
-                stack.append(True)
+                stack.append("T")
                 
         elif token == '|':
             v2 = stack.pop()
             v1 = stack.pop()
-            if v1 is True or v2 is True:
-                stack.append(True)
-            elif v1 is None or v2 is None:
-                stack.append(None)
+            if v1 == "T" or v2 == "T":
+                stack.append("T")
+            elif v1 == "N" or v2 == "N":
+                stack.append("N")
+            elif v1 == "F" or v2 == "F":
+                if v1 == "df" or v2 == "df":
+                    stack.append("df")
+                else:
+                    stack.append("F")
             else:
-                stack.append(False)
+                stack.append("df")
                 
         elif token == '^':
             v2 = stack.pop()
             v1 = stack.pop()
-            if v1 is None or v2 is None:
-                stack.append(None)
+            if v1 == "N" or v2 == "N":
+                stack.append("N")
             else:
-                stack.append(v1 ^ v2)
+                b1 = False if is_f(v1) else True
+                b2 = False if is_f(v2) else True
+                stack.append("F" if b1 == b2 else "T")
                 
-    return stack[0] if stack else False
+    return stack[0] if stack else "df"
 
 import itertools
 
@@ -140,11 +155,11 @@ class ExpertSystem:
         
         if target in self.facts:
             log(f"{indent}✔ {target} is True (Initial Fact)")
-            return True
-        
+            return "T"
+        print(target)
         if visited and target in visited:
             log(f"{indent}⚠ {target} is False (Circular logic detected)")
-            return False
+            return "df"
 
         visited = visited or set()
         visited.add(target)
@@ -163,7 +178,7 @@ class ExpertSystem:
 
                 res = evaluate_rpn(to_rpn(condition), lambda t: self.solve(t, visited.copy(), depth + 1, silent=silent))
                 
-                if res is True:
+                if res == "T":
                     if '|' in conclusion or '^' in conclusion:
                         log(f"{indent}  ➤ Condition is True. Evaluating complex conclusion: {conclusion}")
                         
@@ -172,62 +187,69 @@ class ExpertSystem:
 
                         for v in vars_in_conc:
                             if v != target:
-                                log(f"{indent}    ➤ Checking if '{v}' is forced to True by other rules...")
-                                
+                                log(f"{indent}    ➤ Checking if '{v}' is forced to True/False by other rules...")
                                 val = self.solve(v, visited.copy(), depth + 3, ignored_rule=(condition, conclusion), silent=True)
                                 
-                                if val is True:
-                                    log(f"{indent}    ✔ '{v}' is explicitly forced to True by another rule.")
+                                if val == "T":
+                                    log(f"{indent}    ✔ '{v}' is explicitly forced to True.")
+                                elif val == "F":
+                                    log(f"{indent}    ✔ '{v}' is explicitly forced to False by another rule.")
                                 else:
-                                    log(f"{indent}    ⚠ '{v}' is not forced by other rules (Treating as flexible/Undetermined).")
-                                    val = None
+                                    log(f"{indent}    ⚠ '{v}' is flexible (No strict proof). Treating as Undetermined.")
+                                    val = "N"
                                 known_values[v] = val
                         
                         rpn = to_rpn(conclusion)
                         valid_states = set()
                         import itertools
-                        for combo in itertools.product([True, False], repeat=len(vars_in_conc)):
+                        for combo in itertools.product(["T", "F"], repeat=len(vars_in_conc)):
                             state = dict(zip(vars_in_conc, combo))
                             conflict = False
                             for v in vars_in_conc:
-                                if v != target and known_values[v] is True and state[v] is False:
+                                if v != target and known_values[v] != "N" and known_values[v] != state[v]:
                                     conflict = True
                                     break
                             if conflict:
                                 continue
                                 
-                            if evaluate_rpn(rpn, lambda x: state[x]) is True:
+                            if evaluate_rpn(rpn, lambda x: state[x]) == "T":
                                 valid_states.add(state[target])
                                 
                         if len(valid_states) == 1:
                             final_val = valid_states.pop()
-                            if final_val is True:
+                            if final_val == "T":
                                 log(f"{indent}✔ {target} MUST be True to satisfy '{conclusion}'")
-                                possible_results.append(True)
+                                possible_results.append("T")
                             else:
                                 log(f"{indent}✘ {target} MUST be False to satisfy '{conclusion}'")
                                 explicit_false = True
-                                possible_results.append(False)
+                                possible_results.append("F")
                         else:
                             log(f"{indent}⚠ {target} is Undetermined (Ambiguous conclusion '{conclusion}')")
-                            possible_results.append(None)
+                            possible_results.append("N")
                     else:
                         log(f"{indent}✔ {target} is True (Condition '{condition}' is met)")
-                        possible_results.append(True)
-                elif res is None:
+                        possible_results.append("T")
+                
+                elif res == "N":
                     log(f"{indent}⚠ {target} is Undetermined (Condition '{condition}' cannot be fully determined)")
-                    possible_results.append(None)
+                    possible_results.append("N")
+                elif res == "F":
+                    log(f"{indent}✘ Rule skipped: Condition '{condition}' is strictly FALSE.")
+                elif res == "df":
+                    log(f"{indent}✘ Rule skipped: Condition '{condition}' lacks supporting facts (Default False).")
 
-        if True in possible_results:
-            return True
-        if None in possible_results:
-            return None
+        if "T" in possible_results:
+            return "T"
+        if "N" in possible_results:
+            return "N"
 
         if explicit_false:
             log(f"{indent}✘ {target} is False (Proven mathematically by the rule)")
+            return "F"
         elif not found_rule:
             log(f"{indent}✘ {target} is False (No supporting facts or rules)")
+            return "df"
         else:
             log(f"{indent}✘ {target} is False (All supporting rules failed)")
-            
-        return False
+            return "df"
