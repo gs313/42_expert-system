@@ -43,11 +43,11 @@ def main():
         print(f"\n=== {test_file} ===")
 
         if status == "PASS":
-            print("✅ PASS")
+            print("\033[92mPASS\033[0m")
             passed += 1
 
         elif status == "FAIL":
-            print("❌ FAIL")
+            print("\033[91mFAIL\033[0m")
             print("Expected:")
             print(expected)
             print("Got:")
