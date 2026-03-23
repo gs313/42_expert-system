@@ -11,4 +11,4 @@ A + B <=> C
 A + B <=> !C
 
 =ABG
-?GVX
+?D

@@ -3,7 +3,8 @@ from ExpertSystem import ExpertSystem
 es = ExpertSystem()
 
 es.add_rule(" E => F ^ G")
-es.add_rule("A + B => E | C")
+es.add_rule("A + B => E")
+es.add_rule("A => G")
 # es.add_rule("A + (!B + C) + A => D")
 # es.add_rule("C => E")
 

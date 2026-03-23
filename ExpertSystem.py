@@ -27,6 +27,7 @@ def to_rpn(expression):
     return output
 
 def evaluate_rpn(rpn_list, solve_func):
+    print(rpn_list)
     stack = []
     for token in rpn_list:
         if token.isupper():
@@ -130,15 +131,19 @@ class ExpertSystem:
             lhs, rhs = rule_str.split("=>")
             self.rules.append((lhs.strip(), rhs.strip()))
     
-    def solve(self, target, visited=None, depth=0, ignored_rule=None):
+    def solve(self, target, visited=None, depth=0, ignored_rule=None, silent=False):
+        def log(msg):
+            if not silent:
+                print(msg)
+                
         indent = "  " * depth
         
         if target in self.facts:
-            print(f"{indent}✔ {target} is True (Initial Fact)")
+            log(f"{indent}✔ {target} is True (Initial Fact)")
             return True
         
         if visited and target in visited:
-            print(f"{indent}⚠ {target} is False (Circular logic detected)")
+            log(f"{indent}⚠ {target} is False (Circular logic detected)")
             return False
 
         visited = visited or set()
@@ -154,35 +159,63 @@ class ExpertSystem:
                 
             if target in re.findall(r'[A-Z]', conclusion):
                 found_rule = True
-                print(f"{indent}➤ To prove {target}, trying rule: {condition} => {conclusion}")
-                
-                res = evaluate_rpn(to_rpn(condition), lambda t: self.solve(t, visited.copy(), depth + 1))
+                log(f"{indent}➤ To prove {target}, trying rule: {condition} => {conclusion}")
+
+                res = evaluate_rpn(to_rpn(condition), lambda t: self.solve(t, visited.copy(), depth + 1, silent=silent))
                 
                 if res is True:
                     if '|' in conclusion or '^' in conclusion:
-                        print(f"{indent}  ➤ Condition is True. Evaluating complex conclusion: {conclusion}")
+                        log(f"{indent}  ➤ Condition is True. Evaluating complex conclusion: {conclusion}")
                         
-                        final_val = resolve_complex_conclusion(
-                            conclusion, 
-                            target, 
-                            lambda v: self.solve(v, visited.copy(), depth + 2, ignored_rule=(condition, conclusion))
-                        )
+                        vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
+                        known_values = {}
+
+                        for v in vars_in_conc:
+                            if v != target:
+                                log(f"{indent}    ➤ Checking if '{v}' is forced to True by other rules...")
+                                
+                                val = self.solve(v, visited.copy(), depth + 3, ignored_rule=(condition, conclusion), silent=True)
+                                
+                                if val is True:
+                                    log(f"{indent}    ✔ '{v}' is explicitly forced to True by another rule.")
+                                else:
+                                    log(f"{indent}    ⚠ '{v}' is not forced by other rules (Treating as flexible/Undetermined).")
+                                    val = None
+                                known_values[v] = val
                         
-                        if final_val is True:
-                            print(f"{indent}✔ {target} MUST be True to satisfy '{conclusion}'")
-                            possible_results.append(True)
-                        elif final_val is False:
-                            print(f"{indent}✘ {target} MUST be False to satisfy '{conclusion}'")
-                            explicit_false = True
-                            possible_results.append(False)
+                        rpn = to_rpn(conclusion)
+                        valid_states = set()
+                        import itertools
+                        for combo in itertools.product([True, False], repeat=len(vars_in_conc)):
+                            state = dict(zip(vars_in_conc, combo))
+                            conflict = False
+                            for v in vars_in_conc:
+                                if v != target and known_values[v] is True and state[v] is False:
+                                    conflict = True
+                                    break
+                            if conflict:
+                                continue
+                                
+                            if evaluate_rpn(rpn, lambda x: state[x]) is True:
+                                valid_states.add(state[target])
+                                
+                        if len(valid_states) == 1:
+                            final_val = valid_states.pop()
+                            if final_val is True:
+                                log(f"{indent}✔ {target} MUST be True to satisfy '{conclusion}'")
+                                possible_results.append(True)
+                            else:
+                                log(f"{indent}✘ {target} MUST be False to satisfy '{conclusion}'")
+                                explicit_false = True
+                                possible_results.append(False)
                         else:
-                            print(f"{indent}⚠ {target} is Undetermined (Ambiguous conclusion '{conclusion}')")
+                            log(f"{indent}⚠ {target} is Undetermined (Ambiguous conclusion '{conclusion}')")
                             possible_results.append(None)
                     else:
-                        print(f"{indent}✔ {target} is True (Condition '{condition}' is met)")
+                        log(f"{indent}✔ {target} is True (Condition '{condition}' is met)")
                         possible_results.append(True)
                 elif res is None:
-                    print(f"{indent}⚠ {target} is Undetermined (Condition '{condition}' cannot be fully determined)")
+                    log(f"{indent}⚠ {target} is Undetermined (Condition '{condition}' cannot be fully determined)")
                     possible_results.append(None)
 
         if True in possible_results:
@@ -191,10 +224,10 @@ class ExpertSystem:
             return None
 
         if explicit_false:
-            print(f"{indent}✘ {target} is False (Proven mathematically by the rule)")
+            log(f"{indent}✘ {target} is False (Proven mathematically by the rule)")
         elif not found_rule:
-            print(f"{indent}✘ {target} lacks independent proof (Treating as Undetermined to preserve ambiguity)")
+            log(f"{indent}✘ {target} is False (No supporting facts or rules)")
         else:
-            print(f"{indent}✘ {target} is False (All supporting rules failed)")
+            log(f"{indent}✘ {target} is False (All supporting rules failed)")
             
         return False
