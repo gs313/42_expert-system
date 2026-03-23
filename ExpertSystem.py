@@ -1,4 +1,6 @@
 import re
+import sys
+
 
 def to_rpn(expression):
     precedence = {'!': 4, '+': 3, '|': 2, '^': 1}
@@ -36,7 +38,6 @@ def evaluate_rpn(rpn_list, solve_func):
     for token in rpn_list:
         if token.isupper():
             stack.append(solve_func(token))
-            
         elif token == '!':
             val = stack.pop()
             if val == "N":
@@ -156,9 +157,8 @@ class ExpertSystem:
         if target in self.facts:
             log(f"{indent}✔ {target} is True (Initial Fact)")
             return "T"
-        print(target)
         if visited and target in visited:
-            log(f"{indent}⚠ {target} is False (Circular logic detected)")
+            print(f"{indent}⚠ {target} is False (Circular logic detected)")
             return "df"
 
         visited = visited or set()
@@ -174,12 +174,12 @@ class ExpertSystem:
                 
             if target in re.findall(r'[A-Z]', conclusion):
                 found_rule = True
-                log(f"{indent}➤ To prove {target}, trying rule: {condition} => {conclusion}")
+                print(f"{indent}➤ To prove {target}, trying rule: {condition} => {conclusion}")
 
                 res = evaluate_rpn(to_rpn(condition), lambda t: self.solve(t, visited.copy(), depth + 1, silent=silent))
                 
                 if res == "T":
-                    if '|' in conclusion or '^' in conclusion:
+                    if conclusion.strip() != target:
                         log(f"{indent}  ➤ Condition is True. Evaluating complex conclusion: {conclusion}")
                         
                         vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
@@ -201,7 +201,7 @@ class ExpertSystem:
                         
                         rpn = to_rpn(conclusion)
                         valid_states = set()
-                        import itertools
+
                         for combo in itertools.product(["T", "F"], repeat=len(vars_in_conc)):
                             state = dict(zip(vars_in_conc, combo))
                             conflict = False
@@ -224,6 +224,11 @@ class ExpertSystem:
                                 log(f"{indent}✘ {target} MUST be False to satisfy '{conclusion}'")
                                 explicit_false = True
                                 possible_results.append("F")
+                            if "T" in possible_results and "F" in possible_results:
+                                log(f"{indent}  CONTRADICTION DETECTED: '{target}' is proven to be BOTH True and False!")
+                                log(f"{indent}  System cannot resolve this paradox. Halting evaluation.")
+                                print(f"Contradiction Error: '{target}' has conflicting Truth values.")
+                                sys.exit()
                         else:
                             log(f"{indent}⚠ {target} is Undetermined (Ambiguous conclusion '{conclusion}')")
                             possible_results.append("N")
@@ -245,11 +250,11 @@ class ExpertSystem:
             return "N"
 
         if explicit_false:
-            log(f"{indent}✘ {target} is False (Proven mathematically by the rule)")
+            print(f"{indent}✘ {target} is False (Proven mathematically by the rule)")
             return "F"
         elif not found_rule:
-            log(f"{indent}✘ {target} is False (No supporting facts or rules)")
+            print(f"{indent}✘ {target} is False (No supporting facts or rules)")
             return "df"
         else:
-            log(f"{indent}✘ {target} is False (All supporting rules failed)")
+            print(f"{indent}✘ {target} is False (All supporting rules failed)")
             return "df"
