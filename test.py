@@ -5,6 +5,7 @@ es = ExpertSystem()
 es.add_rule("A + B => C")
 es.add_rule("A + (!B + C) + A => D")
 es.add_rule("C => E")
+es.add_rule("a ^ (b | c + d ) + e => f")
 es.add_fact("AB")
 query = "D"
 

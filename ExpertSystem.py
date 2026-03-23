@@ -65,7 +65,7 @@ class ExpertSystem:
     def add_rule(self, rule_str):
         if "=>" in rule_str:
             lhs, rhs = rule_str.split("=>")
-            self.rules.append(lhs.strip(), rhs.strip())
+            self.rules.append((lhs.strip(), rhs.strip()))
     
     def solve(self, target, visited=None):
         if visited is None: visited = set()
