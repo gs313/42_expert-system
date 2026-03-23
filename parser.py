@@ -154,7 +154,7 @@ def parse_file(filepath, expert_system):
             validate_expression(rhs)
             validate_expression_syntax(rhs)
 
-            print (lhs + "=>" + rhs)
+            # print (lhs + "=>" + rhs)
             expert_system.add_rule(lhs + "=>" + rhs)
             continue
 
