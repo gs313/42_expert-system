@@ -2,12 +2,17 @@ from ExpertSystem import ExpertSystem
 
 es = ExpertSystem()
 
-es.add_rule("A + B => C")
-es.add_rule("A + (!B + C) + A => D")
-es.add_rule("C => E")
-es.add_rule("a ^ (b | c + d ) + e => f")
-es.add_fact("AB")
-query = "D"
+es.add_rule(" E => F")
+es.add_rule("A + B => E")
+# es.add_rule("A + (!B + C) + A => D")
+# es.add_rule("C => E")
+
+es.add_fact("A")
+query = "F"
 
 is_true = es.solve(query)
-print(f"ผลลัพธ์ของ {query} คือ: {'จริง (True)' if is_true else 'เท็จหรือสรุปไม่ได้'}")
+print(is_true)
+if is_true == None:
+    print(f"ผลลัพธ์ของ {query} คือ: สรุปไม่ได้")
+else:
+    print(f"ผลลัพธ์ของ {query} คือ: {'จริง (True)' if is_true else 'เท็จ'}")
