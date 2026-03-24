@@ -1,65 +1,130 @@
-import subprocess
 import os
+from ExpertSystem import ExpertSystem
+from parser import parse_file
 
-TEST_DIR = "test_cases"
-MAIN_FILE = "main.py"
+
+def run_test(filepath, expected):
+    es = ExpertSystem()
+
+    try:
+        parse_file(filepath, es)
+    except Exception as e:
+        print(f"\033[93m[ERROR]\033[0m parsing {filepath}: {e}")
+        return False
+
+    success = True
+
+	#debug
+    # for rule in es.rules:
+    #     print(rule)
+    for query, expected_result in expected.items():
+        try:
+            result = es.solve(query)
+
+            if result != expected_result:
+                print(
+                    f"\033[91m[FAIL]\033[0m {filepath} | {query}: expected {expected_result}, got {result}"
+                )
+                success = False
+            else:
+                print(
+                    f"\033[92m[PASS]\033[0m {filepath} | {query}: {result}"
+                )
+
+        except Exception as e:
+            print(f"\033[93m[ERROR]\033[0m {filepath} | {query}: {e}")
+            success = False
+
+    return success
 
 
-def run_test(test_file):
-    expected_file = test_file.replace(".txt", ".expected")
-
-    # Run your program
-    result = subprocess.run(
-        ["python3", MAIN_FILE, test_file],
-        capture_output=True,
-        text=True
+def test_and():
+    return run_test(
+        "./good_test_case/and.txt",
+        {
+            "E": "T",
+            "F": "F"
+        }
     )
 
-    output = result.stdout.strip()
 
-    # Read expected output
-    if not os.path.exists(expected_file):
-        return ("NO_EXPECTED", test_file, output, "")
+def test_or():
+    return run_test(
+        "./good_test_case/or.txt",
+        {
+            "A": "T",
+        }
+    )
 
-    with open(expected_file, "r") as f:
-        expected = f.read().strip()
 
-    if output == expected:
-        return ("PASS", test_file, output, expected)
-    else:
-        return ("FAIL", test_file, output, expected)
+def test_xor():
+    return run_test(
+        "./good_test_case/XOR.txt",
+        {
+            "A": "F"
+        }
+    )
 
+def test_same():
+    return run_test(
+        "./good_test_case/same.txt",
+        {
+            "A": "T"
+        }
+    )
+
+def test_neg():
+    return run_test(
+        "./good_test_case/neg.txt",
+        {
+            "A": "F"
+        }
+    )
+
+def test_mix():
+    return run_test(
+        "./good_test_case/mix.txt",
+        {
+            "C": "T"
+        }
+    )
+
+def test_nrf():
+    return run_test(
+        "./good_test_case/no_related_fact.txt",
+        {
+            "A": "F"
+        }
+    )
+
+def test_blyat():
+    return run_test(
+        "./good_test_case/blyat.txt",
+        {
+            "E": "T"
+        }
+    )
 
 def main():
-    files = sorted(f for f in os.listdir(TEST_DIR) if f.endswith(".txt"))
+    tests = [
+        test_and,
+        test_or,
+        test_xor,
+        test_same,
+        test_neg,
+        test_mix,
+        test_nrf,
+        test_blyat
+    ]
 
-    total = len(files)
     passed = 0
 
-    for file in files:
-        path = os.path.join(TEST_DIR, file)
-        status, test_file, output, expected = run_test(path)
-
-        print(f"\n=== {test_file} ===")
-
-        if status == "PASS":
-            print("\033[92mPASS\033[0m")
+    for test in tests:
+        print(f"\nRunning {test.__name__}...")
+        if test():
             passed += 1
 
-        elif status == "FAIL":
-            print("\033[91mFAIL\033[0m")
-            print("Expected:")
-            print(expected)
-            print("Got:")
-            print(output)
-
-        else:
-            print("⚠️ No expected file")
-            print("Output:")
-            print(output)
-
-    print("\n====================")
-    print(f"Passed: {passed}/{total}")
+    print(f"\n{passed}/{len(tests)} tests passed")
 
 
 if __name__ == "__main__":
