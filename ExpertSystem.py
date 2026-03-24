@@ -270,7 +270,7 @@ class ExpertSystem:
             return "F"
         elif not found_rule:
             print(f"{indent}✘ {target} is False (No supporting facts or rules)")
-            return "df"
+            return "F"
         else:
             print(f"{indent}✘ {target} is False (All supporting rules failed)")
-            return "df"
+            return "F"
