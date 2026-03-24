@@ -69,6 +69,7 @@ def interactive_loop(es):
                 continue
 
             query = parts[1]
+            logger = ReasonerLogger()
             result = es.solve(query)
             print(f"\033[96m{query}\033[0m is {format_result(result)}")
 

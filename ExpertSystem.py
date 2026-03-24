@@ -31,60 +31,68 @@ def to_rpn(expression):
 def evaluate_rpn(rpn_list, solve_func):
     stack = []
 
-    # ฟังก์ชันช่วยเช็คว่าเป็นเท็จ (ครอบคลุมทั้ง "F" แท้ และ "df")
-    def is_f(val):
-        return val in ("F", "df")
+    # "T"  = True (proven)
+    # "F"  = Default False (no info)
+    # "N"  = Unknown (ambiguous)
+    # "CF" = Constrained False (ถูกบังคับ)
 
     for token in rpn_list:
         if token.isupper():
             stack.append(solve_func(token))
         elif token == '!':
             val = stack.pop()
-            if val == "N":
-                stack.append("N")
-            elif is_f(val):
+
+            if val == "T":
+                stack.append("CF")
+            elif val == "CF":
                 stack.append("T")
+            elif val == "N":
+                stack.append("N")
             else:
-                stack.append("F")
+                stack.append("N")
 
         elif token == '+':
-            v2 = stack.pop()
             v1 = stack.pop()
-            if v1 == "F" or v2 == "F":
+            v2 = stack.pop()
+
+            if "CF" in (v1, v2):
+                stack.append("CF")
+            elif "F" in (v1, v2):
                 stack.append("F")
-            elif v1 == "df" or v2 == "df":
-                stack.append("df")
-            elif v1 == "N" or v2 == "N":
+            elif "N" in (v1, v2):
                 stack.append("N")
             else:
                 stack.append("T")
 
         elif token == '|':
-            v2 = stack.pop()
             v1 = stack.pop()
-            if v1 == "T" or v2 == "T":
+            v2 = stack.pop()
+
+            if "T" in (v1, v2):
                 stack.append("T")
-            elif v1 == "N" or v2 == "N":
+            elif "N" in (v1, v2):
                 stack.append("N")
-            elif v1 == "F" or v2 == "F":
-                if v1 == "df" or v2 == "df":
-                    stack.append("df")
-                else:
-                    stack.append("F")
+            elif "CF" in (v1, v2):
+                stack.append("CF")
             else:
-                stack.append("df")
+                stack.append("F")
 
         elif token == '^':
-            v2 = stack.pop()
             v1 = stack.pop()
-            if v1 == "N" or v2 == "N":
+            v2 = stack.pop()
+
+            if "N" in (v1, v2):
+                stack.append("N")
+            elif "F" in (v1, v2):
                 stack.append("N")
             else:
-                b1 = False if is_f(v1) else True
-                b2 = False if is_f(v2) else True
-                stack.append("F" if b1 == b2 else "T")
+                b1 = (v1 == "T")
+                b2 = (v2 == "T")
+                stack.append("T" if b1 != b2 else "CF")
 
     return stack[0] if stack else "df"
+
+
 
 import itertools
 
@@ -105,7 +113,7 @@ def resolve_complex_conclusion(conclusion_str, target, get_val_func):
 
     valid_states_for_target = set()
 
-    for combo in itertools.product([True, False], repeat=len(vars_in_conc)):
+    for combo in itertools.product(["T", "F"], repeat=len(vars_in_conc)):
         state = dict(zip(vars_in_conc, combo))
         conflict = False
 
@@ -124,6 +132,21 @@ def resolve_complex_conclusion(conclusion_str, target, get_val_func):
     if len(valid_states_for_target) == 1:
         return valid_states_for_target.pop()
     return None
+
+class ReasonerLogger:
+    def __init__(self):
+        self.logs = []
+
+    def log(self, depth, message):
+        indent = "  " * depth
+
+        display_msg = message.replace("CF", "F")
+
+        self.logs.append(f"{indent}{display_msg}")
+
+    def dump(self):
+        return "\n".join(self.logs)
+
 
 class ExpertSystem:
     def __init__(self):
@@ -162,115 +185,169 @@ class ExpertSystem:
             self.facts.add(fact)
             return True
 
-
-    def solve(self, target, visited=None, depth=0, ignored_rule=None, silent=False):
-        def log(msg):
-            if not silent:
-                print(msg)
-
-        indent = "  " * depth
+    def prove(self, target, visited, depth=0, logger=None):
+        if logger:
+            logger.log(depth, f"Proving {target}")
 
         if target in self.facts:
-            log(f"{indent}✔ {target} is True (Initial Fact)")
+            if logger:
+                logger.log(depth, f"✔ {target} is True (fact)")
             return "T"
-        if visited and target in visited:
-            print(f"{indent}⚠ {target} is False (Circular logic detected)")
-            return "df"
 
-        visited = visited or set()
+        if target in visited:
+            if logger:
+                logger.log(depth, f"⚠ Loop on {target} → False")
+            return "F"
+
         visited.add(target)
 
-        found_rule = False
-        possible_results = []
-        explicit_false = False
+        found = False
+        has_unknown = False
 
         for condition, conclusion in self.rules:
-            if (condition, conclusion) == ignored_rule:
+            if target not in re.findall(r'[A-Z]', conclusion):
                 continue
 
-            if target in re.findall(r'[A-Z]', conclusion):
-                found_rule = True
-                print(f"{indent}➤ To prove {target}, trying rule: {condition} => {conclusion}")
+            found = True
 
-                res = evaluate_rpn(to_rpn(condition), lambda t: self.solve(t, visited.copy(), depth + 1, silent=silent))
+            if logger:
+                logger.log(depth + 1, f"➤ Rule: {condition} => {conclusion}")
+
+            cond_val = self.eval_condition(condition, visited, depth + 1, logger)
+
+            if cond_val == "T":
+                if conclusion.strip() == target:
+                    if logger:
+                        logger.log(depth, f"✔ {target} proven directly")
+                    return "T"
+
+                val = self.resolve_conclusion(conclusion, target, visited, depth + 2, logger)
+
+                if val == "T":
+                    if logger:
+                        logger.log(depth, f"✔ {target} must be True")
+                    return "T"
+                elif val == "CF":
+                    if logger:
+                        logger.log(depth, f"✔ {target} = CF (from rule {condition} => {conclusion})")
+                    return "CF"
+                elif val == "N":
+                    has_unknown = True
+                    continue 
+
+        if logger:
+            if has_unknown:
+                return "N"
+            if not found:
+                logger.log(depth, f"✘ {target} = F (no rule)")
+            else:
+                logger.log(depth, f"✘ {target} = F (rules failed)")
+
+        return "F"
+    
+    def eval_condition(self, expr, visited, depth=0, logger=None):
+        rpn = to_rpn(expr)
+
+        if logger:
+            logger.log(depth, f"Eval condition: {expr}")
+
+        def resolver(t):
+            return self.prove(t, visited.copy(), depth + 1, logger)
+
+        result = evaluate_rpn(rpn, resolver)
+
+        if logger:
+            logger.log(depth, f"→ Result: {result}")
+
+        return result
+    
+    def solve(self, target):
+        logger = ReasonerLogger()
+
+        logger.log(0, f"Query {target}")
+
+        result = self.prove(target, set(), 1, logger)
+
+        if result == "T":
+            final = "T"
+        else:
+            # check ambiguity
+            possible = set()
+
+            for condition, conclusion in self.rules:
+                if target not in re.findall(r'[A-Z]', conclusion):
+                    continue
+
+                res = self.eval_condition(condition, set())
 
                 if res == "T":
-                    if conclusion.strip() != target:
-                        log(f"{indent}  ➤ Condition is True. Evaluating complex conclusion: {conclusion}")
+                    val = self.resolve_conclusion(conclusion, target, set())
+                    if val:
+                        possible.add(val)
 
-                        vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
-                        known_values = {}
+            if len(possible) > 1:
+                final = "N"
+            else:
+                final = result
 
-                        for v in vars_in_conc:
-                            if v != target:
-                                log(f"{indent}    ➤ Checking if '{v}' is forced to True/False by other rules...")
-                                val = self.solve(v, visited.copy(), depth + 3, ignored_rule=(condition, conclusion), silent=True)
+        logger.log(0, f"Result: {target} = {final}")
 
-                                if val == "T":
-                                    log(f"{indent}    ✔ '{v}' is explicitly forced to True.")
-                                elif val == "F":
-                                    log(f"{indent}    ✔ '{v}' is explicitly forced to False by another rule.")
-                                else:
-                                    log(f"{indent}    ⚠ '{v}' is flexible (No strict proof). Treating as Undetermined.")
-                                    val = "N"
-                                known_values[v] = val
+        print(logger.dump())
+        return final
+    
+    def resolve_conclusion(self, conclusion, target, visited, depth=0, logger=None):
+        vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
+        rpn = to_rpn(conclusion)
 
-                        rpn = to_rpn(conclusion)
-                        valid_states = set()
+        if logger:
+            logger.log(depth, f"Resolving: {conclusion}")
 
-                        for combo in itertools.product(["T", "F"], repeat=len(vars_in_conc)):
-                            state = dict(zip(vars_in_conc, combo))
-                            conflict = False
-                            for v in vars_in_conc:
-                                if v != target and known_values[v] != "N" and known_values[v] != state[v]:
-                                    conflict = True
-                                    break
-                            if conflict:
-                                continue
+        valid = set()
+        valid_states = []
 
-                            if evaluate_rpn(rpn, lambda x: state[x]) == "T":
-                                valid_states.add(state[target])
+        for combo in itertools.product(["T", "CF"], repeat=len(vars_in_conc)):
+            state = dict(zip(vars_in_conc, combo))
 
-                        if len(valid_states) == 1:
-                            final_val = valid_states.pop()
-                            if final_val == "T":
-                                log(f"{indent}✔ {target} MUST be True to satisfy '{conclusion}'")
-                                possible_results.append("T")
-                            else:
-                                log(f"{indent}✘ {target} MUST be False to satisfy '{conclusion}'")
-                                explicit_false = True
-                                possible_results.append("F")
-                            if "T" in possible_results and "F" in possible_results:
-                                log(f"{indent}  CONTRADICTION DETECTED: '{target}' is proven to be BOTH True and False!")
-                                log(f"{indent}  System cannot resolve this paradox. Halting evaluation.")
-                                print(f"Contradiction Error: '{target}' has conflicting Truth values.")
-                                sys.exit()
-                        else:
-                            log(f"{indent}⚠ {target} is Undetermined (Ambiguous conclusion '{conclusion}')")
-                            possible_results.append("N")
-                    else:
-                        log(f"{indent}✔ {target} is True (Condition '{condition}' is met)")
-                        possible_results.append("T")
+            conflict = False
 
-                elif res == "N":
-                    log(f"{indent}⚠ {target} is Undetermined (Condition '{condition}' cannot be fully determined)")
-                    possible_results.append("N")
-                elif res == "F":
-                    log(f"{indent}✘ Rule skipped: Condition '{condition}' is strictly FALSE.")
-                elif res == "df":
-                    log(f"{indent}✘ Rule skipped: Condition '{condition}' lacks supporting facts (Default False).")
+            for v in vars_in_conc:
+                if v == target:
+                    continue
 
-        if "T" in possible_results:
-            return "T"
-        if "N" in possible_results:
+                # 🔥 ใช้ prove แบบ "silent"
+                val = self.prove(v, visited.copy(), depth + 1, None)
+
+                if val in ("T", "CF") and val != state[v]:
+                    conflict = True
+                    break
+
+            if conflict:
+                continue
+
+            result = evaluate_rpn(rpn, lambda x: state[x])
+
+            if result == "T":
+                valid.add(state[target])
+                valid_states.append(state)
+
+        if logger:
+            if len(valid_states) == 1:
+                state = valid_states[0]
+
+                if logger:
+                    for v in vars_in_conc:
+                        if v != target:
+                            val = self.prove(v, visited.copy(), depth + 1, logger)
+                            logger.log(depth + 1, f"{v} = {val}")
+        if logger:
+            logger.log(depth, f"⇒ Possible {target}: {valid}")
+
+        if len(valid) == 1:
+            return valid.pop()
+
+        if len(valid) > 1:
+            if logger:
+                logger.log(depth, f"⚠ {target} is Undetermined (multiple valid states)")
             return "N"
 
-        if explicit_false:
-            print(f"{indent}✘ {target} is False (Proven mathematically by the rule)")
-            return "F"
-        elif not found_rule:
-            print(f"{indent}✘ {target} is False (No supporting facts or rules)")
-            return "F"
-        else:
-            print(f"{indent}✘ {target} is False (All supporting rules failed)")
-            return "F"
+        return None
