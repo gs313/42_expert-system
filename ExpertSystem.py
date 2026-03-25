@@ -222,7 +222,8 @@ class ExpertSystem:
                     return "T"
 
                 val = self.resolve_conclusion(conclusion, target, visited, depth + 2, logger)
-
+                if logger:
+                    logger.log(0,f"{val} =========")
                 if val == "T":
                     if logger:
                         logger.log(depth, f"✔ {target} must be True")
@@ -235,15 +236,20 @@ class ExpertSystem:
                     has_unknown = True
                     continue 
 
-        if logger:
-            if has_unknown:
-                return "N"
-            if not found:
-                logger.log(depth, f"✘ {target} = F (no rule)")
-            else:
-                logger.log(depth, f"✘ {target} = F (rules failed)")
+        if has_unknown and logger:
+            logger.log(depth, f"⚠ {target} = N (no definitive rule)")
+        if has_unknown:
+            return "N"
 
-        return "F"
+        if not found:
+            if logger:
+                logger.log(depth, f"✘ {target}  = F (no rule)")
+            return "F"
+
+        if logger:
+            logger.log(depth, f"✘ {target} = N (rules failed)")
+
+        return "N"
     
     def eval_condition(self, expr, visited, depth=0, logger=None):
         rpn = to_rpn(expr)
@@ -282,13 +288,22 @@ class ExpertSystem:
 
                 if res == "T":
                     val = self.resolve_conclusion(conclusion, target, set())
-                    if val:
+                    if val in ("T", "CF"):
                         possible.add(val)
+                    elif val == "N":
+                        possible.add("N")
 
-            if len(possible) > 1:
-                final = "N"
-            else:
-                final = result
+        if result == "T":
+            final = "T"
+
+        elif len(possible) == 0:
+            final = result
+
+        elif len(possible) == 1:
+            final = possible.pop()
+
+        else:
+            final = "N"
 
         logger.log(0, f"Result: {target} = {final}")
 

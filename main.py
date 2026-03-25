@@ -8,7 +8,6 @@ UNKNOWN = -1
 
 
 def format_result(val):
-    print(val)
     if val == "T":
         return "\033[92mTRUE\033[0m"        # green
     elif val == "F":
