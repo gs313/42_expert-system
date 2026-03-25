@@ -105,6 +105,24 @@ def test_blyat():
         }
     )
 
+def test_imply_and():
+    return run_test(
+        "./good_test_case/imply_and.txt",
+        {
+            "E": "T"
+        }
+    )
+
+def test_complex_paren():
+    return run_test(
+        "./good_test_case/complex_parenthesis.txt",
+        {
+            "G":"T",
+            "V":"T",
+            "X":"T"
+        }
+    )
+
 def main():
     tests = [
         test_and,
@@ -114,7 +132,9 @@ def main():
         test_neg,
         test_mix,
         test_nrf,
-        test_blyat
+        test_blyat,
+        test_imply_and,
+        test_complex_paren
     ]
 
     passed = 0
