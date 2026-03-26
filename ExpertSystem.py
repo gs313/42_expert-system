@@ -222,8 +222,6 @@ class ExpertSystem:
                     return "T"
 
                 val = self.resolve_conclusion(conclusion, target, visited, depth + 2, logger)
-                if logger:
-                    logger.log(0,f"{val} =========")
                 if val == "T":
                     if logger:
                         logger.log(depth, f"✔ {target} must be True")
@@ -277,7 +275,7 @@ class ExpertSystem:
         if result == "T":
             final = "T"
         else:
-            # check ambiguity
+
             possible = set()
 
             for condition, conclusion in self.rules:
@@ -329,7 +327,6 @@ class ExpertSystem:
                 if v == target:
                     continue
 
-                # 🔥 ใช้ prove แบบ "silent"
                 val = self.prove(v, visited.copy(), depth + 1, None)
 
                 if val in ("T", "CF") and val != state[v]:
