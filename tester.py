@@ -118,7 +118,8 @@ def test_complex_paren():
         "./good_test_case/complex_parenthesis.txt",
         {
             "G":"T",
-            "V":"T",
+            "V":"N",
+            "B":"T",
             "X":"T"
         }
     )
