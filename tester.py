@@ -43,7 +43,7 @@ def test_and():
         "./good_test_case/and.txt",
         {
             "E": "T",
-            "F": "F"
+            "F": "N"
         }
     )
 
@@ -61,7 +61,7 @@ def test_xor():
     return run_test(
         "./good_test_case/XOR.txt",
         {
-            "A": "F"
+            "A": "N"
         }
     )
 
@@ -77,7 +77,7 @@ def test_neg():
     return run_test(
         "./good_test_case/neg.txt",
         {
-            "A": "F"
+            "A": "N"
         }
     )
 

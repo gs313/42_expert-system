@@ -232,8 +232,10 @@ class ExpertSystem:
             if logger:
                 if not has_rule:
                     logger.log(depth, f"✘ {target} = F (no rule)")
+                    return "F"
                 else:
                     logger.log(depth, f"✘ {target} = F (no valid rule)")
+                    return "N"
             return "F"
 
         if len(results) == 1:
@@ -312,57 +314,55 @@ class ExpertSystem:
         return final
     
     def resolve_conclusion(self, conclusion, target, visited, depth=0, logger=None):
-        vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
-        rpn = to_rpn(conclusion)
-
         if logger:
             logger.log(depth, f"Resolving: {conclusion}")
 
-        valid = set()
-        valid_states = []
+        if '+' in conclusion:
+            parts = conclusion.split('+')
+            parts = [p.strip() for p in parts]
 
-        for combo in itertools.product(["T", "CF"], repeat=len(vars_in_conc)):
-            state = dict(zip(vars_in_conc, combo))
+            for p in parts:
+                val = self.prove(p, visited.copy(), depth + 1, logger)
 
-            conflict = False
-
-            for v in vars_in_conc:
-                if v == target:
+                if val == "F":
+                    return None
+                if p == target:
                     continue
 
-                val = self.prove(v, visited.copy(), depth + 1, None)
+            if target in parts:
+                return "T"
 
-                if val in ("T", "CF") and val != state[v]:
-                    conflict = True
-                    break
+        if conclusion.startswith('!') and len(conclusion) == 2:
+            var = conclusion[1]
+            val = self.prove(var, visited.copy(), depth + 1, logger)
 
-            if conflict:
-                continue
+            if var == target:
+                if val == "T":
+                    return "CF"
+                if val == "CF":
+                    return "T"
 
-            result = evaluate_rpn(rpn, lambda x: state[x])
+        rpn = to_rpn(conclusion)
+
+        possible = set()
+        for t_val in ["T", "CF"]:
+            def resolver(x):
+                if x == target:
+                    return t_val
+                return self.prove(x, visited.copy(), depth + 1, None)
+
+            result = evaluate_rpn(rpn, resolver)
 
             if result == "T":
-                valid.add(state[target])
-                valid_states.append(state)
+                possible.add(t_val)
 
         if logger:
-            if len(valid_states) == 1:
-                state = valid_states[0]
+            logger.log(depth, f"⇒ Possible {target}: {possible}")
 
-                if logger:
-                    for v in vars_in_conc:
-                        if v != target:
-                            val = self.prove(v, visited.copy(), depth + 1, logger)
-                            logger.log(depth + 1, f"{v} = {val}")
-        if logger:
-            logger.log(depth, f"⇒ Possible {target}: {valid}")
+        if len(possible) == 1:
+            return possible.pop()
 
-        if len(valid) == 1:
-            return valid.pop()
-
-        if len(valid) > 1:
-            if logger:
-                logger.log(depth, f"⚠ {target} is Undetermined (multiple valid states)")
+        if len(possible) > 1:
             return "N"
 
         return None
