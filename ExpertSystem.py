@@ -196,56 +196,59 @@ class ExpertSystem:
 
         if target in visited:
             if logger:
-                logger.log(depth, f"⚠ Loop on {target} → False")
-            return "F"
+                logger.log(depth, f"⚠ Loop on {target} → Unknown")
+            return "N"
 
         visited.add(target)
 
-        found = False
-        has_unknown = False
+        results = set()
+        has_rule = False
 
         for condition, conclusion in self.rules:
             if target not in re.findall(r'[A-Z]', conclusion):
                 continue
 
-            found = True
+            has_rule = True
 
             if logger:
                 logger.log(depth + 1, f"➤ Rule: {condition} => {conclusion}")
 
-            cond_val = self.eval_condition(condition, visited, depth + 1, logger)
+            cond_val = self.eval_condition(condition, visited.copy(), depth + 1, logger)
 
-            if cond_val == "T":
-                if conclusion.strip() == target:
-                    if logger:
-                        logger.log(depth, f"✔ {target} proven directly")
-                    return "T"
+            if cond_val != "T":
+                if logger:
+                    logger.log(depth + 1, f"✘ Condition is not True ({cond_val})")
+                continue
 
-                val = self.resolve_conclusion(conclusion, target, visited, depth + 2, logger)
-                if val == "T":
-                    if logger:
-                        logger.log(depth, f"✔ {target} must be True")
-                    return "T"
-                elif val == "CF":
-                    if logger:
-                        logger.log(depth, f"✔ {target} = CF (from rule {condition} => {conclusion})")
-                    return "CF"
-                elif val == "N":
-                    has_unknown = True
-                    continue 
+            val = self.resolve_conclusion(conclusion, target, visited.copy(), depth + 2, logger)
 
-        if has_unknown and logger:
-            logger.log(depth, f"⚠ {target} = N (no definitive rule)")
-        if has_unknown:
-            return "N"
+            if val in ("T", "CF"):
+                results.add(val)
 
-        if not found:
+            elif val == "N":
+                results.add("N")
+
+        if len(results) == 0:
             if logger:
-                logger.log(depth, f"✘ {target}  = F (no rule)")
+                if not has_rule:
+                    logger.log(depth, f"✘ {target} = F (no rule)")
+                else:
+                    logger.log(depth, f"✘ {target} = F (no valid rule)")
             return "F"
 
+        if len(results) == 1:
+            val = next(iter(results))
+            if logger:
+                if val == "T":
+                    logger.log(depth, f"✔ {target} must be True")
+                elif val == "CF":
+                    logger.log(depth, f"✔ {target} must be False")
+                else:
+                    logger.log(depth, f"⚠ {target} is Unknown")
+            return val
+
         if logger:
-            logger.log(depth, f"✘ {target} = N (rules failed)")
+            logger.log(depth, f"⚠ {target} is Undetermined (conflict: {results})")
 
         return "N"
     
