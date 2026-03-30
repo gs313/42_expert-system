@@ -124,6 +124,29 @@ def test_complex_paren():
         }
     )
 
+def test_long_rule():
+    return run_test(
+        "./good_test_case/very_long_rule.txt",
+        {
+            "C":"T"
+        }
+    )
+
+def test_in_left_side():
+    return run_test(
+        "./good_test_case/in_leftside_of_rule.txt",
+        {
+            "A":"F"
+        }
+    )
+
+def test_bidirectional():
+    return run_test(
+        "./good_test_case/Bidirectional.txt",
+        {
+            "D":"T"
+        }
+    )
 def main():
     tests = [
         test_and,
@@ -135,7 +158,10 @@ def main():
         test_nrf,
         test_blyat,
         test_imply_and,
-        test_complex_paren
+        test_complex_paren,
+        test_long_rule,
+        test_in_left_side,
+        test_bidirectional
     ]
 
     passed = 0

@@ -85,8 +85,13 @@ def validate_rule_syntax(line):
 
 # ---------------- MAIN PARSER ----------------
 def parse_file(filepath, expert_system):
+    count = 0
+    c2 = 0
     with open(filepath, "r") as f:
         lines = f.readlines()
+
+    if len(lines) == 0:
+        raise ValueError("Input file is empty")
 
     current_lhs = None
 
@@ -102,6 +107,7 @@ def parse_file(filepath, expert_system):
             if not all(c.isupper() for c in facts):
                 raise ValueError(f"Invalid facts at line {line_num}: {facts}")
             # print(f"fact = {facts}")
+            c2+=1
             expert_system.add_fact(facts)
             continue
 
@@ -112,6 +118,7 @@ def parse_file(filepath, expert_system):
                 raise ValueError(f"Invalid queries at line {line_num}: {queries}")
             # print(f"quries = {queries}")
             expert_system.queries = list(queries)
+            count+=1
             continue
 
         # ---------------- FULL BICONDITIONAL ----------------
@@ -135,6 +142,7 @@ def parse_file(filepath, expert_system):
             # print((rhs + "=>" + lhs))
             expert_system.add_rule(lhs + "=>" + rhs)
             expert_system.add_rule(rhs + "=>" + lhs)
+            c2+=2
             continue
 
         # ---------------- FULL IMPLICATION ----------------
@@ -156,6 +164,7 @@ def parse_file(filepath, expert_system):
 
             # print (lhs + "=>" + rhs)
             expert_system.add_rule(lhs + "=>" + rhs)
+            c2+=1
             continue
 
         # ---------------- SPLIT BICONDITIONAL ----------------
@@ -179,6 +188,7 @@ def parse_file(filepath, expert_system):
             expert_system.add_rule(rhs + "=>" + lhs)
 
             current_lhs = None
+            c2+=2
             continue
 
         # ---------------- SPLIT IMPLICATION ----------------
@@ -200,6 +210,7 @@ def parse_file(filepath, expert_system):
             expert_system.add_rule(lhs + "=>" + rhs)
 
             current_lhs = None
+            c2=1
             continue
 
         # ---------------- LHS ----------------
@@ -207,3 +218,8 @@ def parse_file(filepath, expert_system):
         validate_expression_syntax(line)
 
         current_lhs = normalize(line)
+
+    if c2 + count == 0:
+        raise ValueError(f"No Fact No Query and No Rule detected")
+    if count == 0:
+        return False
