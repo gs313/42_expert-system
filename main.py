@@ -7,6 +7,36 @@ TRUE = 1
 FALSE = 0
 UNKNOWN = -1
 
+from parser import (
+    validate_expression,
+    validate_expression_syntax,
+    validate_rule_syntax,
+    normalize
+)
+
+def validate_rule_input(rule):
+    validate_rule_syntax(rule)
+
+    if "<=>" in rule:
+        lhs, rhs = rule.split("<=>")
+    elif "=>" in rule:
+        lhs, rhs = rule.split("=>")
+    else:
+        raise ValueError("Rule must contain => or <=>")
+
+    lhs = normalize(lhs.strip())
+    rhs = normalize(rhs.strip())
+
+    if not lhs or not rhs:
+        raise ValueError("Empty LHS or RHS")
+
+    validate_expression(lhs)
+    validate_expression_syntax(lhs)
+
+    validate_expression(rhs)
+    validate_expression_syntax(rhs)
+
+    return lhs, rhs
 
 def format_result(val):
     if val == "T":
@@ -108,10 +138,24 @@ def interactive_loop(es):
                 continue
 
             try:
+                lhs, rhs = validate_rule_input(rule)
+
+                # Check duplicate
+                if (lhs, rhs) in es.rules:
+                    print("⚠️ Rule already exists")
+                    continue
+
+                # If bidirectional, check both
+                if "<=>" in rule and (rhs, lhs) in es.rules:
+                    print("⚠️ Rule already exists (bidirectional)")
+                    continue
+
                 es.add_rule(rule)
-                print(f"Added rule: {rule}")
+
+                print(f"✅ Rule is valid and added: {lhs} {'<=>' if '<=>' in rule else '=>'} {rhs}")
+
             except Exception as e:
-                print(f"Error adding rule: {e}")
+                print(f"❌ Invalid rule: {e}")
 
         elif cmd == "del":
             indexed = list_rules(es)
