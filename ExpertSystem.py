@@ -204,6 +204,9 @@ class ExpertSystem:
         results = set()
         has_rule = False
 
+        # ==================================================
+        #  Try rules that conclude TARGET
+        # ==================================================
         for condition, conclusion in self.rules:
             if target not in re.findall(r'[A-Z]', conclusion):
                 continue
@@ -224,10 +227,32 @@ class ExpertSystem:
 
             if val in ("T", "CF"):
                 results.add(val)
-
             elif val == "N":
                 results.add("N")
 
+        # ==================================================
+        # NEGATION INFERENCE (IMPORTANT FIX)
+        # If we can prove !target → target = CF
+        # ==================================================
+        neg_symbol = f"!{target}"
+
+        for condition, conclusion in self.rules:
+            if neg_symbol not in conclusion:
+                continue
+
+            if logger:
+                logger.log(depth + 1, f"➤ Check negation rule: {condition} => {conclusion}")
+
+            cond_val = self.eval_condition(condition, visited.copy(), depth + 1, logger)
+
+            if cond_val == "T":
+                if logger:
+                    logger.log(depth, f"✔ {target} = CF (because !{target} is True)")
+                return "CF"
+
+        # ==================================================
+        # Decide result
+        # ==================================================
         if len(results) == 0:
             if logger:
                 if not has_rule:
@@ -314,55 +339,54 @@ class ExpertSystem:
         return final
     
     def resolve_conclusion(self, conclusion, target, visited, depth=0, logger=None):
+        vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
+        rpn = to_rpn(conclusion)
+
         if logger:
             logger.log(depth, f"Resolving: {conclusion}")
 
-        if '+' in conclusion:
-            parts = conclusion.split('+')
-            parts = [p.strip() for p in parts]
+        valid = set()
 
-            for p in parts:
-                val = self.prove(p, visited.copy(), depth + 1, logger)
+        for combo in itertools.product(["T", "CF"], repeat=len(vars_in_conc)):
+            state = dict(zip(vars_in_conc, combo))
 
-                if val == "F":
-                    return None
-                if p == target:
+            conflict = False
+
+            for v in vars_in_conc:
+                if v == target:
                     continue
 
-            if target in parts:
-                return "T"
+                val = self.prove(v, visited.copy(), depth + 1, None)
+                if val == "T" and state[v] != "T":
+                    conflict = True
+                    break
+                if val == "CF" and state[v] != "CF":
+                    conflict = True
+                    break
 
-        if conclusion.startswith('!') and len(conclusion) == 2:
-            var = conclusion[1]
-            val = self.prove(var, visited.copy(), depth + 1, logger)
+            if conflict:
+                continue
 
-            if var == target:
-                if val == "T":
-                    return "CF"
-                if val == "CF":
-                    return "T"
-
-        rpn = to_rpn(conclusion)
-
-        possible = set()
-        for t_val in ["T", "CF"]:
             def resolver(x):
-                if x == target:
-                    return t_val
-                return self.prove(x, visited.copy(), depth + 1, None)
+                if state[x] == "T":
+                    return "T"
+                else:
+                    return "CF"
 
             result = evaluate_rpn(rpn, resolver)
 
             if result == "T":
-                possible.add(t_val)
+                valid.add(state[target])
 
         if logger:
-            logger.log(depth, f"⇒ Possible {target}: {possible}")
+            logger.log(depth, f"⇒ Possible {target}: {valid}")
 
-        if len(possible) == 1:
-            return possible.pop()
+        if len(valid) == 1:
+            return "T" if "T" in valid else "CF"
 
-        if len(possible) > 1:
+        if len(valid) > 1:
+            if logger:
+                logger.log(depth, f"⚠ {target} is Undetermined")
             return "N"
 
         return None
