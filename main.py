@@ -1,6 +1,7 @@
 import sys
 from ExpertSystem import ExpertSystem
 from parser import parse_file
+import argparse
 
 TRUE = 1
 FALSE = 0
@@ -68,7 +69,6 @@ def interactive_loop(es):
                 continue
 
             query = parts[1]
-            logger = ReasonerLogger()
             result = es.solve(query)
             print(f"\033[96m{query}\033[0m is {format_result(result)}")
 
@@ -107,25 +107,38 @@ def interactive_loop(es):
             print("Unknown command")
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python main.py <input_file>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Expert System")
 
-    filepath = sys.argv[1]
+    parser.add_argument(
+        "input_file",
+        help="Path to input file"
+    )
+
+    parser.add_argument(
+        "-i", "--interactive",
+        action="store_true",
+        help="Enable interactive mode after processing queries"
+    )
+
+    args = parser.parse_args()
 
     es = ExpertSystem()
 
     try:
-        parse_file(filepath, es)
+        pf = parse_file(args.input_file, es)
     except Exception as e:
         print(f"Error while parsing file: {e}")
         sys.exit(1)
 
-    # First run (normal behavior)
+    if not pf:
+        print("\033[36mNo Queries\033[0m")
+    # Normal run
     run_queries(es)
 
-    # Bonus interactive mode
-    interactive_loop(es)
+    # Optional interactive mode
+    if args.interactive:
+        interactive_loop(es)
+
 
 if __name__ == "__main__":
     main()
