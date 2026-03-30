@@ -93,7 +93,14 @@ def interactive_loop(es):
     print("  exit\n")
 
     while True:
-        cmd = input("> ").strip()
+        try:
+            cmd = input("> ").strip()
+        except EOFError:
+            print("\nExiting (Ctrl+D)...")
+            break
+        except KeyboardInterrupt:
+            print("\nInterrupted (Ctrl+C). Type 'exit' to quit.")
+            continue
 
         if cmd == "exit":
             break
