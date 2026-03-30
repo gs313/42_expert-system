@@ -25,6 +25,29 @@ def run_queries(es):
         except Exception as e:
             print(f"{query} caused error: {e}")
 
+def list_rules(es):
+    visited = set()
+    indexed = []
+    idx = 1
+
+    for lhs, rhs in es.rules:
+        if (lhs, rhs) in visited:
+            continue
+
+        if (rhs, lhs) in es.rules:
+            indexed.append((idx, f"{lhs} <=> {rhs}", [(lhs, rhs), (rhs, lhs)]))
+            visited.add((lhs, rhs))
+            visited.add((rhs, lhs))
+        else:
+            indexed.append((idx, f"{lhs} => {rhs}", [(lhs, rhs)]))
+            visited.add((lhs, rhs))
+
+        idx += 1
+
+    for i, text, _ in indexed:
+        print(f"{i}. {text}")
+
+    return indexed
 
 def interactive_loop(es):
     print("\n--- Interactive mode ---")
@@ -33,7 +56,9 @@ def interactive_loop(es):
     print("  toggle A    → toggle a fact")
     print("  ask C       → query a fact")
     print("  run         → run all queries")
-    print("  show        → show facts")
+    print("  show        → show facts and rules")
+    print("  add A+B=>C  → add rule")
+    print("  del         → delete rule (choose from list)")
     print("  help        → show commands")
     print("  exit\n")
 
@@ -75,6 +100,47 @@ def interactive_loop(es):
         elif cmd == "run":
             run_queries(es)
 
+        elif cmd.startswith("add"):
+            rule = cmd[3:].strip()
+
+            if not rule:
+                print("Usage: add A+B=>C or A<=>B")
+                continue
+
+            try:
+                es.add_rule(rule)
+                print(f"Added rule: {rule}")
+            except Exception as e:
+                print(f"Error adding rule: {e}")
+
+        elif cmd == "del":
+            indexed = list_rules(es)
+
+            if not indexed:
+                print("No rules to delete.")
+                continue
+
+            try:
+                choice = int(input("Select rule number to delete: "))
+            except ValueError:
+                print("Invalid number.")
+                continue
+
+            selected = next((r for r in indexed if r[0] == choice), None)
+
+            if not selected:
+                print("Invalid selection.")
+                continue
+
+            _, text, rule_pairs = selected
+
+            # remove all associated pairs
+            for pair in rule_pairs:
+                if pair in es.rules:
+                    es.rules.remove(pair)
+
+            print(f"Deleted rule: {text}")
+
         elif cmd == "show":
             print("Rules:")
 
@@ -100,7 +166,9 @@ def interactive_loop(es):
             print("  toggle A    → toggle a fact")
             print("  ask C       → query a fact")
             print("  run         → run all queries")
-            print("  show        → show facts")
+            print("  show        → show facts and rules")
+            print("  add A+B=>C  → add rule")
+            print("  del         → delete rule (choose from list)")
             print("  exit\n")
 
         else:

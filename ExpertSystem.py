@@ -170,6 +170,24 @@ class ExpertSystem:
             lhs, rhs = rule_str.split("=>")
             self.rules.append((lhs.strip(), rhs.strip()))
 
+    def delete_rule(self, lhs, rhs):
+        self.rules = [rule for rule in self.rules if rule != (lhs, rhs)]
+    def delete_rule_str(self, rule_str):
+        if "<=>" in rule_str:
+            lhs, rhs = rule_str.split("<=>")
+            lhs, rhs = lhs.strip(), rhs.strip()
+            self.rules = [
+                rule for rule in self.rules
+                if rule not in [(lhs, rhs), (rhs, lhs)]
+            ]
+
+        elif "=>" in rule_str:
+            lhs, rhs = rule_str.split("=>")
+            lhs, rhs = lhs.strip(), rhs.strip()
+            self.rules = [
+                rule for rule in self.rules
+                if rule != (lhs, rhs)
+            ]
     def reset_facts(self):
         self.facts.clear()
 
@@ -278,7 +296,7 @@ class ExpertSystem:
             logger.log(depth, f"⚠ {target} is Undetermined (conflict: {results})")
 
         return "N"
-    
+
     def eval_condition(self, expr, visited, depth=0, logger=None):
         rpn = to_rpn(expr)
 
@@ -294,7 +312,7 @@ class ExpertSystem:
             logger.log(depth, f"→ Result: {result}")
 
         return result
-    
+
     def solve(self, target):
         logger = ReasonerLogger()
 
@@ -337,7 +355,7 @@ class ExpertSystem:
 
         print(logger.dump())
         return final
-    
+
     def resolve_conclusion(self, conclusion, target, visited, depth=0, logger=None):
         vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
         rpn = to_rpn(conclusion)
