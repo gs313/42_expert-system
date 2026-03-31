@@ -220,6 +220,14 @@ def test_xor_conclusion3():
         }
         )
 
+def test_from_subject():
+        return run_test(
+        "./good_test_case/from_subject.txt",
+        {
+            "C":"N",
+        }
+        )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Expert System")
@@ -275,6 +283,7 @@ def main():
         test_blyat,
         test_long_rule,
         test_in_left_side,
+        test_from_subject
     ]
 
     if args.mandatory:
@@ -304,7 +313,7 @@ def main():
     if args.bonus:
         print(f"\n bonus: {b_passed}/{len(tests_bonus)} tests passed")
     if args.additional:
-        print(f"\nadditional: {o_passed}/{len(tests_other)} tests passed")
+        print(f"\n additional: {o_passed}/{len(tests_other)} tests passed")
 
 
 if __name__ == "__main__":

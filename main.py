@@ -244,14 +244,11 @@ def main():
     es = ExpertSystem()
 
     try:
-        pf = parse_file(args.input_file, es)
+        parse_file(args.input_file, es)
     except Exception as e:
         print(f"Error while parsing file: {e}")
         sys.exit(1)
-
-    if not pf:
-        print("\033[36mNo Queries\033[0m")
-    # Normal run
+        
     run_queries(es)
 
     # Optional interactive mode
