@@ -1,5 +1,6 @@
 import re
-import sys
+from collections import defaultdict
+import itertools
 
 
 def to_rpn(expression):
@@ -48,6 +49,8 @@ def evaluate_rpn(rpn_list, solve_func):
                 stack.append("T")
             elif val == "N":
                 stack.append("N")
+            elif val == "F":
+                stack.append("T")
             else:
                 stack.append("N")
 
@@ -83,8 +86,6 @@ def evaluate_rpn(rpn_list, solve_func):
 
             if "N" in (v1, v2):
                 stack.append("N")
-            elif "F" in (v1, v2):
-                stack.append("N")
             else:
                 b1 = (v1 == "T")
                 b2 = (v2 == "T")
@@ -94,7 +95,7 @@ def evaluate_rpn(rpn_list, solve_func):
 
 
 
-import itertools
+
 
 def resolve_complex_conclusion(conclusion_str, target, get_val_func):
     vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion_str)))
@@ -135,17 +136,109 @@ def resolve_complex_conclusion(conclusion_str, target, get_val_func):
 
 class ReasonerLogger:
     def __init__(self):
-        self.logs = []
+        self.lines = []
+        self.stack = []
 
-    def log(self, depth, message):
-        indent = "  " * depth
+        self.COLORS = {
+            "RESET": "\033[0m",
+            "GREEN": "\033[92m",
+            "RED": "\033[91m",
+            "YELLOW": "\033[93m",
+            "CYAN": "\033[96m",
+            "MAGENTA": "\033[95m",
+            "BLUE": "\033[94m",
+            "WHITE": "\033[97m",
+            "RULE": "\033[94m",
+        }
 
-        display_msg = message.replace("CF", "F")
+    # =========================
+    # 🎨 Smart Color System
+    # =========================
+    def colorize(self, msg):
+        msg = msg.replace("✔", f"{self.COLORS['GREEN']}✔")
+        msg = msg.replace("✘", f"{self.COLORS['RED']}✘")
+        msg = msg.replace("⚠", f"{self.COLORS['YELLOW']}⚠")
+        msg = msg.replace("➤", f"{self.COLORS['CYAN']}➤")
 
-        self.logs.append(f"{indent}{display_msg}")
+        msg = msg.replace("= T", f"= {self.COLORS['GREEN']}T")
+        msg = msg.replace("= F", f"= {self.COLORS['RED']}F")
+        msg = msg.replace("= N", f"= {self.COLORS['YELLOW']}N")
+
+        return msg
+
+    # =========================
+    # 🌳 Tree prefix
+    # =========================
+    def _prefix(self):
+        prefix = ""
+        for is_last in self.stack[:-1]:
+            prefix += "    " if is_last else "│   "
+
+        if self.stack:
+            prefix += "└── " if self.stack[-1] else "├── "
+
+        return prefix
+
+    # =========================
+    # 🧠 Core log
+    # =========================
+    def log(self, message, is_last=False):
+        self.stack.append(is_last)
+
+        line = self._prefix() + self.colorize(message.replace("CF", "F")) + self.COLORS['RESET']
+        self.lines.append(line)
+
+        self.stack.pop()
+    def error(self, message):
+        msg = f"{self.COLORS['RED']}{message}{self.COLORS['RESET']}"
+        self.log(msg, is_last=False)
+
+    def push(self, is_last=False):
+        self.stack.append(is_last)
+
+    def pop(self):
+        if self.stack:
+            self.stack.pop()
+
+    # =========================
+    # 🎯 Semantic logs (NEW)
+    # =========================
+
+    def query(self, target):
+        self.lines.append(
+            f"{self.COLORS['WHITE']}Query {target}{self.COLORS['RESET']}"
+        )
+
+    def rule(self, condition, conclusion, is_last=False):
+        msg = f"➤ {self.COLORS['BLUE']}Rule: {self.COLORS['YELLOW']}{condition} => {conclusion} {self.COLORS['RESET']}"
+        self.log(msg, is_last)
+
+    def prove(self, target, is_last=False):
+        msg = f"{self.COLORS['CYAN']}Proving:{self.COLORS['RESET']} {target}{self.COLORS['RESET']}"
+        self.log(msg, is_last)
+    def condition(self, expr, is_last=False):
+        msg = f"{self.COLORS['CYAN']}Eval:{self.COLORS['RESET']} {expr}{self.COLORS['RESET']}"
+        self.log(msg, is_last)
+
+    def resolve(self, conclusion, is_last=False):
+        msg = f"{self.COLORS['MAGENTA']}Resolving:{self.COLORS['RESET']} {conclusion}{self.COLORS['RESET']}"
+        self.log(msg, is_last)
+
+    def result(self, val, taget, is_last=False):
+        if val == "T":
+            msg = f"{self.COLORS['GREEN']}Result: {taget} = T{self.COLORS['RESET']}"
+        elif val == "F":
+            msg = f"{self.COLORS['RED']}Result: {taget} = F{self.COLORS['RESET']}"
+        else:
+            msg = f"{self.COLORS['YELLOW']}Result: {taget} = N{self.COLORS['RESET']}"
+        self.log(msg, is_last)
+
+    def possible(self, target, values, is_last=False):
+        msg = f"{self.COLORS['MAGENTA']}Possible {target}:{self.COLORS['RESET']} {values}{self.COLORS['RESET']}"
+        self.log(msg, is_last)
 
     def dump(self):
-        return "\n".join(self.logs)
+        return "\n".join(self.lines)
 
 
 class ExpertSystem:
@@ -153,6 +246,7 @@ class ExpertSystem:
         self.rules = []
         self.facts = set()
         self.queries = []
+        self.graph = defaultdict(list)
 
     def add_fact(self, fact_str):
         for char in fact_str:
@@ -169,6 +263,11 @@ class ExpertSystem:
         elif "=>" in rule_str:
             lhs, rhs = rule_str.split("=>")
             self.rules.append((lhs.strip(), rhs.strip()))
+
+        vars_in_rhs = re.findall(r'[A-Z]', rhs)
+
+        for var in vars_in_rhs:
+            self.graph[var].append((lhs, rhs))
 
     def delete_rule(self, lhs, rhs):
         self.rules = [rule for rule in self.rules if rule != (lhs, rhs)]
@@ -205,40 +304,43 @@ class ExpertSystem:
 
     def prove(self, target, visited, depth=0, logger=None):
         if logger:
-            logger.log(depth, f"Proving {target}")
+            logger.prove(target)
+            logger.push()
 
         if target in self.facts:
             if logger:
-                logger.log(depth, f"✔ {target} is True (fact)")
+                logger.log(f"✔ {target} is True (fact)")
+                logger.pop()
             return "T"
 
         if target in visited:
             if logger:
-                logger.log(depth, f"⚠ Loop on {target} → Unknown")
+                logger.error(f"⚠ Loop on {target} → Unknown")
+                logger.pop()
             return "N"
 
         visited.add(target)
 
         results = set()
-        has_rule = False
 
         # ==================================================
         #  Try rules that conclude TARGET
         # ==================================================
-        for condition, conclusion in self.rules:
+        rules = self.graph.get(target, [])
+        for condition, conclusion in rules:
             if target not in re.findall(r'[A-Z]', conclusion):
                 continue
 
-            has_rule = True
-
             if logger:
-                logger.log(depth + 1, f"➤ Rule: {condition} => {conclusion}")
+                logger.rule(condition, conclusion)
+                logger.push()
 
-            cond_val = self.eval_condition(condition, visited.copy(), depth + 1, logger)
+            cond_val = self.eval_condition(condition, visited.copy(), depth + 1, logger, target)
 
             if cond_val != "T":
                 if logger:
-                    logger.log(depth + 1, f"✘ Condition is not True ({cond_val})")
+                    logger.error( f"✘ Condition is not True ({cond_val})")
+                    logger.pop()
                 continue
 
             val = self.resolve_conclusion(conclusion, target, visited.copy(), depth + 2, logger)
@@ -250,11 +352,15 @@ class ExpertSystem:
 
         if len(results) == 0:
             if logger:
-                if not has_rule:
-                    logger.log(depth, f"✘ {target} = F (no rule)")
+                if not rules:
+                    logger.log(f"✘ {target} = F (no rule)")
+                    logger.result("F", target)
+                    logger.pop()
                     return "F"
                 else:
-                    logger.log(depth, f"✘ {target} = F (no valid rule)")
+                    logger.log(f"✘ {target} = F (no valid rule)")
+                    logger.result("N", target)
+                    logger.pop()
                     return "N"
             return "F"
 
@@ -262,23 +368,30 @@ class ExpertSystem:
             val = next(iter(results))
             if logger:
                 if val == "T":
-                    logger.log(depth, f"✔ {target} must be True")
+                    logger.result("T", target)
+                    logger.pop()
                 elif val == "CF":
-                    logger.log(depth, f"✔ {target} must be False")
+
+                    logger.result("F", target)
+                    logger.pop()
                 else:
-                    logger.log(depth, f"⚠ {target} is Unknown")
+                    logger.log(f"⚠ {target} is Unknown")
+                    logger.pop()
             return val
 
         if logger:
-            logger.log(depth, f"⚠ {target} is Undetermined (conflict: {results})")
+            logger.log(f"⚠ {target} is Undetermined (conflict: {results})")
+            logger.pop()
 
         return "N"
 
-    def eval_condition(self, expr, visited, depth=0, logger=None):
+    def eval_condition(self, expr, visited, depth=0, logger=None, tatget=None):
         rpn = to_rpn(expr)
 
         if logger:
-            logger.log(depth, f"Eval condition: {expr}")
+            # logger.log(f"Eval condition: {expr}")
+            logger.condition(expr)
+            logger.push()
 
         def resolver(t):
             return self.prove(t, visited.copy(), depth + 1, logger)
@@ -286,59 +399,33 @@ class ExpertSystem:
         result = evaluate_rpn(rpn, resolver)
 
         if logger:
-            logger.log(depth, f"→ Result: {result}")
+            logger.result(result, tatget)
+            logger.pop()
 
         return result
 
     def solve(self, target):
         logger = ReasonerLogger()
 
-        logger.log(0, f"Query {target}")
+        # logger.log(f"Query {target}")
+        logger.query(target)
+        logger.push()
 
         result = self.prove(target, set(), 1, logger)
-
-        if result == "T":
-            final = "T"
-        else:
-
-            possible = set()
-
-            for condition, conclusion in self.rules:
-                if target not in re.findall(r'[A-Z]', conclusion):
-                    continue
-
-                res = self.eval_condition(condition, set())
-
-                if res == "T":
-                    val = self.resolve_conclusion(conclusion, target, set())
-                    if val in ("T", "CF"):
-                        possible.add(val)
-                    elif val == "N":
-                        possible.add("N")
-
-        if result == "T":
-            final = "T"
-
-        elif len(possible) == 0:
-            final = result
-
-        elif len(possible) == 1:
-            final = possible.pop()
-
-        else:
-            final = "N"
-
-        logger.log(0, f"Result: {target} = {final}")
+        logger.log(f"Result: {target} = {result}")
+        logger.pop()
 
         print(logger.dump())
-        return final
+        return result
 
     def resolve_conclusion(self, conclusion, target, visited, depth=0, logger=None):
         vars_in_conc = list(set(re.findall(r'[A-Z]', conclusion)))
         rpn = to_rpn(conclusion)
 
         if logger:
-            logger.log(depth, f"Resolving: {conclusion}")
+            # logger.log(f"Resolving: {conclusion}")
+            logger.pop()
+            logger.resolve(conclusion)
 
         valid = set()
         known_vals = {}
@@ -376,14 +463,15 @@ class ExpertSystem:
                 valid.add(state[target])
 
         if logger:
-            logger.log(depth, f"⇒ Possible {target}: {valid}")
+            # logger.log(f"Possible {target}: {valid}")
+            logger.possible(target, valid)
 
         if len(valid) == 1:
             return "T" if "T" in valid else "CF"
 
         if len(valid) > 1:
             if logger:
-                logger.log(depth, f"⚠ {target} is Undetermined")
+                logger.log(f"⚠ {target} is Undetermined")
             return "N"
-
+        
         return None
