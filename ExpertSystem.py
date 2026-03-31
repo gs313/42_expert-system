@@ -271,22 +271,15 @@ class ExpertSystem:
 
     def delete_rule(self, lhs, rhs):
         self.rules = [rule for rule in self.rules if rule != (lhs, rhs)]
-    def delete_rule_str(self, rule_str):
-        if "<=>" in rule_str:
-            lhs, rhs = rule_str.split("<=>")
-            lhs, rhs = lhs.strip(), rhs.strip()
-            self.rules = [
-                rule for rule in self.rules
-                if rule not in [(lhs, rhs), (rhs, lhs)]
-            ]
+        self.rebuild_graph()
 
-        elif "=>" in rule_str:
-            lhs, rhs = rule_str.split("=>")
-            lhs, rhs = lhs.strip(), rhs.strip()
-            self.rules = [
-                rule for rule in self.rules
-                if rule != (lhs, rhs)
-            ]
+    def rebuild_graph(self):
+        self.graph = defaultdict(list)
+        for lhs, rhs in self.rules:
+            vars_in_rhs = re.findall(r'[A-Z]', rhs)
+            for var in vars_in_rhs:
+                self.graph[var].append((lhs, rhs))
+
     def reset_facts(self):
         self.facts.clear()
 
@@ -299,7 +292,7 @@ class ExpertSystem:
             self.facts.remove(fact)
             return False
         else:
-            self.facts.add(fact)
+            self.add_fact(fact)
             return True
 
     def prove(self, target, visited, depth=0, logger=None):
@@ -431,7 +424,7 @@ class ExpertSystem:
         known_vals = {}
         for combo in itertools.product(["T", "CF"], repeat=len(vars_in_conc)):
             state = dict(zip(vars_in_conc, combo))
-            
+
             conflict = False
 
             for v in vars_in_conc:
@@ -440,7 +433,7 @@ class ExpertSystem:
                 if v not in known_vals:
                     known_vals[v] = self.prove(v, visited.copy(), depth + 1, None)
 
-                val = known_vals[v] 
+                val = known_vals[v]
                 if val == "T" and state[v] != "T":
                     conflict = True
                     break
@@ -473,5 +466,5 @@ class ExpertSystem:
             if logger:
                 logger.log(f"⚠ {target} is Undetermined")
             return "N"
-        
+
         return None

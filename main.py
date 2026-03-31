@@ -81,7 +81,7 @@ def list_rules(es):
 
     return indexed
 
-def interactive_loop(es):
+def interactive_loop(es, mandatory=False):
     print("\n--- Interactive mode ---")
     print("Commands:")
     print("  facts ABC   → reset facts")
@@ -118,8 +118,8 @@ def interactive_loop(es):
 
         elif cmd.startswith("toggle"):
             parts = cmd.split()
-            if len(parts) != 2 or not parts[1].isupper():
-                print("Usage: toggle A")
+            if len(parts) != 2 or not parts[1].isupper() or len(parts[1])!= 1:
+                print("Usage: toggle A (One capital letter at a time)")
                 continue
 
             fact = parts[1]
@@ -128,16 +128,18 @@ def interactive_loop(es):
 
         elif cmd.startswith("ask"):
             parts = cmd.split()
-            if len(parts) != 2 or not parts[1].isupper():
-                print("Usage: ask C (capital letter only)")
+            if len(parts) != 2 or not parts[1].isupper() or len(parts[1])!=1:
+                print("Usage: ask C (a capital letter only)")
                 continue
 
             query = parts[1]
             result = es.solve(query)
+            if mandatory and result=="N":
+                result = "F"
             print(f"\033[96m{query}\033[0m is {format_result(result)}")
 
         elif cmd == "run":
-            run_queries(es)
+            run_queries(es, mandatory)
 
         elif cmd.startswith("add"):
             rule = cmd[3:].strip()
@@ -190,7 +192,7 @@ def interactive_loop(es):
             # remove all associated pairs
             for pair in rule_pairs:
                 if pair in es.rules:
-                    es.rules.remove(pair)
+                    es.delete_rule(pair[0],pair[1])
 
             print(f"Deleted rule: {text}")
 
@@ -261,7 +263,7 @@ def main():
 
     # Optional interactive mode
     if args.interactive:
-        interactive_loop(es)
+        interactive_loop(es,args.mandatory)
 
 
 if __name__ == "__main__":
