@@ -248,7 +248,7 @@ def main():
     except Exception as e:
         print(f"Error while parsing file: {e}")
         sys.exit(1)
-        
+
     run_queries(es)
 
     # Optional interactive mode

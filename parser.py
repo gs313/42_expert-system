@@ -223,3 +223,83 @@ def parse_file(filepath, expert_system):
         raise ValueError(f"No Fact No Query and No Rule detected")
     if count == 0:
         return False
+
+def parse_string(content, expert_system):
+    lines = content.strip().split("\n")
+
+    if len(lines) == 0:
+        raise ValueError("Input is empty")
+
+    current_lhs = None
+    count = 0
+    c2 = 0
+
+    for line_num, raw_line in enumerate(lines, start=1):
+        line = raw_line.split("#")[0].strip()
+
+        if not line:
+            continue
+
+        # ---------------- FACTS ----------------
+        if line.startswith("="):
+            facts = line[1:].strip()
+            if not all(c.isupper() for c in facts):
+                raise ValueError(f"Invalid facts at line {line_num}: {facts}")
+            expert_system.add_fact(facts)
+            c2 += 1
+            continue
+
+        # ---------------- QUERIES ----------------
+        if line.startswith("?"):
+            queries = line[1:].strip()
+            if not all(c.isupper() for c in queries):
+                raise ValueError(f"Invalid queries at line {line_num}: {queries}")
+            expert_system.queries = list(queries)
+            count += 1
+            continue
+
+        # ---------------- FULL BICONDITIONAL ----------------
+        if "<=>" in line:
+            validate_rule_syntax(line)
+
+            lhs, rhs = line.split("<=>")
+            lhs = normalize(lhs.strip())
+            rhs = normalize(rhs.strip())
+
+            validate_expression(lhs)
+            validate_expression_syntax(lhs)
+
+            validate_expression(rhs)
+            validate_expression_syntax(rhs)
+
+            expert_system.add_rule(lhs + "=>" + rhs)
+            expert_system.add_rule(rhs + "=>" + lhs)
+            c2 += 2
+            continue
+
+        # ---------------- FULL IMPLICATION ----------------
+        if "=>" in line:
+            validate_rule_syntax(line)
+
+            lhs, rhs = line.split("=>")
+            lhs = normalize(lhs.strip())
+            rhs = normalize(rhs.strip())
+
+            validate_expression(lhs)
+            validate_expression_syntax(lhs)
+
+            validate_expression(rhs)
+            validate_expression_syntax(rhs)
+
+            expert_system.add_rule(lhs + "=>" + rhs)
+            c2 += 1
+            continue
+
+        # ---------------- LHS ----------------
+        validate_expression(line)
+        validate_expression_syntax(line)
+
+        current_lhs = normalize(line)
+
+    if c2 + count == 0:
+        raise ValueError("No Fact, Query, or Rule detected")
