@@ -1,6 +1,7 @@
 import os
 from ExpertSystem import ExpertSystem
 from parser import parse_file
+import argparse
 
 
 def run_test(filepath, expected):
@@ -81,6 +82,14 @@ def test_neg():
         }
     )
 
+def test_neg2():
+    return run_test(
+        "./good_test_case/neg2.txt",
+        {
+            "E": "N"
+        }
+    )
+
 def test_mix():
     return run_test(
         "./good_test_case/mix.txt",
@@ -147,31 +156,155 @@ def test_bidirectional():
             "D":"T"
         }
     )
+
+def test_slack1():
+        return run_test(
+        "./good_test_case/slack1.txt",
+        {
+            "A":"F"
+        }
+        )
+
+def test_or_conclusion():
+        return run_test(
+        "./good_test_case/or_conclusion.txt",
+        {
+            "A":"T",
+            "B":"N",
+            "C":"N"
+        }
+        )
+
+def test_or_conclusion2():
+        return run_test(
+        "./good_test_case/or_conclusion2.txt",
+        {
+            "B":"N",
+            "D":"N",
+            "C":"N"
+        }
+        )
+def test_or_conclusion3():
+        return run_test(
+        "./good_test_case/or_conclusion3.txt",
+        {
+            "B":"N",
+            "C":"N"
+        }
+        )
+
+def test_xor_conclusion():
+        return run_test(
+        "./good_test_case/xor_conclusion.txt",
+        {
+            "B":"N",
+            "C":"N",
+            "A":"T"
+        }
+        )
+def test_xor_conclusion2():
+        return run_test(
+        "./good_test_case/xor_conclusion2.txt",
+        {
+            "B":"N",
+            "C":"N",
+            "D":"N"
+        }
+        )
+def test_xor_conclusion3():
+        return run_test(
+        "./good_test_case/xor_conclusion3.txt",
+        {
+            "B":"N",
+            "C":"N",
+        }
+        )
+
+
 def main():
-    tests = [
-        test_and,
-        test_or,
-        test_xor,
+    parser = argparse.ArgumentParser(description="Expert System")
+
+    parser.add_argument(
+        "-m", "--mandatory",
+        action="store_true",
+        help="Enable mandatory test"
+    )
+
+    parser.add_argument(
+        "-b", "--bonus",
+        action="store_true",
+        help="Enable bonus test"
+    )
+
+    parser.add_argument(
+        "-a", "--additional",
+        action="store_true",
+        help="Enable additional test"
+    )
+
+    args = parser.parse_args()
+
+    if not (args.mandatory or args.bonus or args.additional):
+        print("No test suite selected.")
+        parser.print_help()
+        return
+
+    tests_mandatory = [
+        test_and, #and in condition
+        test_or, #or in condition
+        test_xor, #xor in condition
+        test_neg, #negation
+        test_neg2, #negation again
+        test_imply_and, #and in conclusion
+        test_complex_paren, #parenthesis
+    ]
+    tests_bonus = [
+        test_bidirectional, # <=>
+        test_or_conclusion,
+        test_or_conclusion2,
+        test_or_conclusion3,
+        test_xor_conclusion,
+        test_xor_conclusion2,
+        test_xor_conclusion3,
+    ]
+
+    tests_other = [
         test_same,
-        test_neg,
         test_mix,
         test_nrf,
         test_blyat,
-        test_imply_and,
-        test_complex_paren,
         test_long_rule,
         test_in_left_side,
-        test_bidirectional
     ]
 
-    passed = 0
+    if args.mandatory:
+        m_passed = 0
 
-    for test in tests:
-        print(f"\nRunning {test.__name__}...")
-        if test():
-            passed += 1
+        for test in tests_mandatory:
+            print(f"\nRunning {test.__name__}...")
+            if test():
+                m_passed += 1
 
-    print(f"\n{passed}/{len(tests)} tests passed")
+    if args.bonus:
+        b_passed = 0
+
+        for test in tests_bonus:
+            print(f"\nRunning {test.__name__}...")
+            if test():
+                b_passed += 1
+    if args.additional:
+        o_passed = 0
+
+        for test in tests_other:
+            print(f"\nRunning {test.__name__}...")
+            if test():
+                o_passed += 1
+    if args.mandatory:
+        print(f"\n mandatory : {m_passed}/{len(tests_mandatory)} tests passed")
+    if args.bonus:
+        print(f"\n bonus: {b_passed}/{len(tests_bonus)} tests passed")
+    if args.additional:
+        print(f"\nadditional: {o_passed}/{len(tests_other)} tests passed")
 
 
 if __name__ == "__main__":
