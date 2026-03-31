@@ -3,7 +3,7 @@
 A => !B
 
 
-=A
+=AD
 ?C
 
 # assertions

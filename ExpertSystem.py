@@ -90,7 +90,7 @@ def evaluate_rpn(rpn_list, solve_func):
                 b2 = (v2 == "T")
                 stack.append("T" if b1 != b2 else "CF")
 
-    return stack[0] if stack else "df"
+    return stack[0]
 
 
 
@@ -227,32 +227,9 @@ class ExpertSystem:
 
             if val in ("T", "CF"):
                 results.add(val)
-            elif val == "N":
+            elif val == "N" and logger:
                 results.add("N")
 
-        # ==================================================
-        # NEGATION INFERENCE (IMPORTANT FIX)
-        # If we can prove !target → target = CF
-        # ==================================================
-        neg_symbol = f"!{target}"
-
-        for condition, conclusion in self.rules:
-            if neg_symbol not in conclusion:
-                continue
-
-            if logger:
-                logger.log(depth + 1, f"➤ Check negation rule: {condition} => {conclusion}")
-
-            cond_val = self.eval_condition(condition, visited.copy(), depth + 1, logger)
-
-            if cond_val == "T":
-                if logger:
-                    logger.log(depth, f"✔ {target} = CF (because !{target} is True)")
-                return "CF"
-
-        # ==================================================
-        # Decide result
-        # ==================================================
         if len(results) == 0:
             if logger:
                 if not has_rule:
@@ -346,17 +323,19 @@ class ExpertSystem:
             logger.log(depth, f"Resolving: {conclusion}")
 
         valid = set()
-
+        known_vals = {}
         for combo in itertools.product(["T", "CF"], repeat=len(vars_in_conc)):
             state = dict(zip(vars_in_conc, combo))
-
+            
             conflict = False
 
             for v in vars_in_conc:
                 if v == target:
                     continue
+                if v not in known_vals:
+                    known_vals[v] = self.prove(v, visited.copy(), depth + 1, None)
 
-                val = self.prove(v, visited.copy(), depth + 1, None)
+                val = known_vals[v] 
                 if val == "T" and state[v] != "T":
                     conflict = True
                     break
