@@ -1,6 +1,6 @@
-import os
+import pandas as pd
 from ExpertSystem import ExpertSystem
-from parser import parse_file
+from parser import parse_file, parse_strings
 import argparse
 
 
@@ -38,6 +38,52 @@ def run_test(filepath, expected):
 
     return success
 
+def run_test_string(content, expected):
+    es = ExpertSystem()
+
+    try:
+        parse_strings(content, es)
+    except Exception as e:
+        return {"error": str(e)}
+
+    results = []
+
+    for query, expected_result in expected.items():
+        try:
+            result = es.solve(query)
+            if result == "N":
+                result = "F"
+            results.append({
+                "Query": query,
+                "Expected": expected_result,
+                "Got": result,
+                "Pass": result == expected_result
+            })
+        except Exception as e:
+            results.append({
+                "Query": query,
+                "Expected": expected_result,
+                "Got": f"ERROR: {e}",
+                "Pass": False
+            })
+
+    return pd.DataFrame(results)
+
+def show_test_string(title, content, expected):
+    print(f"\n=== {title} ===")
+
+    df = run_test_string(content, expected)
+
+    if isinstance(df, dict):
+        print("❌ ERROR:", df["error"])
+        return
+
+    display(df)
+
+    score = df["Pass"].sum()
+    total = len(df)
+
+    print(f"Result: {score}/{total} passed")
 
 def test_and():
     return run_test(

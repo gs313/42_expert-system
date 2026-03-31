@@ -47,10 +47,12 @@ def format_result(val):
         return "\033[93mUNDETERMINED\033[0m" # yellow
 
 
-def run_queries(es):
+def run_queries(es, mandatory=False):
     for query in es.queries:
         try:
             result = es.solve(query)
+            if mandatory and result=="N":
+                result = "F"
             print(f"\033[96m{query}\033[0m is {format_result(result)}")
         except Exception as e:
             print(f"{query} caused error: {e}")
@@ -239,6 +241,12 @@ def main():
         help="Enable interactive mode after processing queries"
     )
 
+    parser.add_argument(
+        "-m", "--mandatory",
+        action="store_true",
+        help="Enable mandatory mode for evaluation"
+    )
+
     args = parser.parse_args()
 
     es = ExpertSystem()
@@ -249,7 +257,7 @@ def main():
         print(f"Error while parsing file: {e}")
         sys.exit(1)
 
-    run_queries(es)
+    run_queries(es,mandatory=args.mandatory)
 
     # Optional interactive mode
     if args.interactive:
