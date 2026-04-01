@@ -241,12 +241,32 @@ class ReasonerLogger:
         return "\n".join(self.lines)
 
 
+class Rule:
+    _id_counter = 0
+
+    def __init__(self, lhs, rhs):
+        self.lhs = lhs
+        self.rhs = rhs
+        self.id = Rule._id_counter
+        Rule._id_counter += 1
+
+        self.lhs_vars = re.findall(r'[A-Z]', lhs)
+        self.rhs_vars = re.findall(r'[A-Z]', rhs)
+
+    def __repr__(self):
+        return f"R{self.id}: {self.lhs} => {self.rhs}"
+
 class ExpertSystem:
     def __init__(self):
         self.rules = []
         self.facts = set()
         self.queries = []
         self.graph = defaultdict(list)
+        self.rules = []
+
+        self.fact_to_rules = defaultdict(list)   # Fact → Rules (incoming)
+        self.rule_to_facts = defaultdict(list)   # Rule → Facts (outgoing)
+        self.rule_dependencies = defaultdict(list)  # Rule ← Facts (conditions)
 
     def add_fact(self, fact_str):
         for char in fact_str:
@@ -257,21 +277,44 @@ class ExpertSystem:
         if "<=>" in rule_str:
             lhs, rhs = rule_str.split("<=>")
             lhs, rhs = lhs.strip(), rhs.strip()
-            self.rules.append((lhs, rhs))
-            self.rules.append((rhs, lhs))
+            self._add_rule_obj(lhs, rhs)
+            self._add_rule_obj(rhs, lhs)
 
         elif "=>" in rule_str:
             lhs, rhs = rule_str.split("=>")
-            self.rules.append((lhs.strip(), rhs.strip()))
+            self._add_rule_obj(lhs.strip(), rhs.strip())
 
-        vars_in_rhs = re.findall(r'[A-Z]', rhs)
 
-        for var in vars_in_rhs:
-            self.graph[var].append((lhs, rhs))
+    def _add_rule_obj(self, lhs, rhs):
+        rule = Rule(lhs, rhs)
+        self.rules.append(rule)
+
+        # Rule → Facts (conclusion edges)
+        for var in rule.rhs_vars:
+            self.rule_to_facts[rule].append(var)
+            self.fact_to_rules[var].append(rule)
+
+        # Facts → Rule (condition edges)
+        for var in rule.lhs_vars:
+            self.rule_dependencies[rule].append(var)
 
     def delete_rule(self, lhs, rhs):
-        self.rules = [rule for rule in self.rules if rule != (lhs, rhs)]
-        self.rebuild_graph()
+        to_remove = [r for r in self.rules if r.lhs == lhs and r.rhs == rhs]
+
+        for rule in to_remove:
+            self.rules.remove(rule)
+
+            # Remove Rule → Fact
+            for var in rule.rhs_vars:
+                if rule in self.fact_to_rules[var]:
+                    self.fact_to_rules[var].remove(rule)
+
+            # Remove Fact → Rule
+            if rule in self.rule_dependencies:
+                del self.rule_dependencies[rule]
+
+            if rule in self.rule_to_facts:
+                del self.rule_to_facts[rule]
 
     def rebuild_graph(self):
         self.graph = defaultdict(list)
@@ -319,8 +362,10 @@ class ExpertSystem:
         # ==================================================
         #  Try rules that conclude TARGET
         # ==================================================
-        rules = self.graph.get(target, [])
-        for condition, conclusion in rules:
+        rules = self.fact_to_rules.get(target, [])
+        for rule in rules:
+            condition = rule.lhs
+            conclusion = rule.rhs
             if target not in re.findall(r'[A-Z]', conclusion):
                 continue
 

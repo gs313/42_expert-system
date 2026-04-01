@@ -62,17 +62,20 @@ def list_rules(es):
     indexed = []
     idx = 1
 
-    for lhs, rhs in es.rules:
-        if (lhs, rhs) in visited:
+    for rule in es.rules:
+        key = (rule.lhs, rule.rhs)
+        if key in visited:
             continue
 
-        if (rhs, lhs) in es.rules:
-            indexed.append((idx, f"{lhs} <=> {rhs}", [(lhs, rhs), (rhs, lhs)]))
-            visited.add((lhs, rhs))
-            visited.add((rhs, lhs))
+        reverse = next((r for r in es.rules if r.lhs == rule.rhs and r.rhs == rule.lhs), None)
+
+        if reverse:
+            indexed.append((idx, f"{rule.lhs} <=> {rule.rhs}", [rule, reverse]))
+            visited.add((rule.lhs, rule.rhs))
+            visited.add((rule.rhs, rule.lhs))
         else:
-            indexed.append((idx, f"{lhs} => {rhs}", [(lhs, rhs)]))
-            visited.add((lhs, rhs))
+            indexed.append((idx, f"{rule.lhs} => {rule.rhs}", [rule]))
+            visited.add((rule.lhs, rule.rhs))
 
         idx += 1
 
@@ -152,21 +155,20 @@ def interactive_loop(es, mandatory=False):
                 lhs, rhs = validate_rule_input(rule)
 
                 # Check duplicate
-                if (lhs, rhs) in es.rules:
-                    print("⚠️ Rule already exists")
+                if any(r.lhs == lhs and r.rhs == rhs for r in es.rules):
+                    print("Rule already exists")
                     continue
 
-                # If bidirectional, check both
-                if "<=>" in rule and (rhs, lhs) in es.rules:
-                    print("⚠️ Rule already exists (bidirectional)")
+                if "<=>" in rule and any(r.lhs == rhs and r.rhs == lhs for r in es.rules):
+                    print("Rule already exists (bidirectional)")
                     continue
 
                 es.add_rule(rule)
 
-                print(f"✅ Rule is valid and added: {lhs} {'<=>' if '<=>' in rule else '=>'} {rhs}")
+                print(f"Rule is valid and added: {lhs} {'<=>' if '<=>' in rule else '=>'} {rhs}")
 
             except Exception as e:
-                print(f"❌ Invalid rule: {e}")
+                print(f"Invalid rule: {e}")
 
         elif cmd == "del":
             indexed = list_rules(es)
@@ -190,9 +192,8 @@ def interactive_loop(es, mandatory=False):
             _, text, rule_pairs = selected
 
             # remove all associated pairs
-            for pair in rule_pairs:
-                if pair in es.rules:
-                    es.delete_rule(pair[0],pair[1])
+            for rule in rule_pairs:
+                es.delete_rule(rule.lhs, rule.rhs)
 
             print(f"Deleted rule: {text}")
 
@@ -201,7 +202,8 @@ def interactive_loop(es, mandatory=False):
 
             visited = set()
 
-            for lhs, rhs in es.rules:
+            for rule in es.rules:
+                lhs, rhs = rule.lhs, rule.rhs
                 if (lhs, rhs) in visited:
                     continue
 
